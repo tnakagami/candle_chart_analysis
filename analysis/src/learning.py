@@ -32,7 +32,7 @@ class Network():
         num_classes : int
             出力層のクラスサイズ
         """
-        model = models.resnet18(pretrained=False)
+        model = models.resnet18(pretrained=True)
         num_ftrs = model.fc.in_features
         model.fc = nn.Linear(num_ftrs, num_classes) # 全結合層（FC層）の出力クラス数を変更
         self.device = device
