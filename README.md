@@ -75,6 +75,21 @@
 1. jupyterコンテナを起動したPCのIPアドレスまたはドメイン名を指定し、Jupyter Notebookにアクセスする。ここで、ポート番号は「18580」を指定すること。
 1. 事前に取得したtokenを入力し、Webブラウザからworkディレクトリに移動する。
 
-## チャート画像の作り方
+## チャート画像の作成手順
 1. Jupyter Notebookから「candle_chart_visualizer.ipynb」を起動する。
 1. 起動したNotebookの先頭セルから順番に実行する。チャート画像の作成には時間がかかるため、余裕をもって実施すること。
+
+## モデル構築の実施手順
+### pythonファイルを直接実行する場合
+1. docker containerにアクセスし、「src」以下に移動する。
+1. 以下のコマンドを実行し、学習が完了するのを待つ。
+
+    ```bash
+    python main.py
+    ```
+
+### Jupyter Notebookから実行する場合
+1. Jupyter Notebookから「deep_learning.ipynb」を起動する。
+1. 起動したNotebookの先頭セルから順番に実行する。学習には時間がかかるため、余裕をもって実施すること。
+
+    また、チャート画像が必要になるため、事前にチャート画像を作成しておくこと。
