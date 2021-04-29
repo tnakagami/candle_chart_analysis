@@ -1,0 +1,25 @@
+version: '3.4'
+
+services:
+    jupyter:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        shm_size: '6gb' # shared memory size
+        image: custom-jupyter:latest
+        restart: always
+        user: root
+        container_name: jupyter
+        environment:
+            GRANT_SUDO: "yes"
+            NB_UID: 1001
+            NB_GID: 117
+        volumes:
+            - ./analysis:/home/jovyan/work
+        logging:
+            driver: json-file
+            options:
+                max-size: "10m"
+                max-file: "1"
+        ports:
+            - 18580:8888
