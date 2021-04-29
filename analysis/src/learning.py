@@ -40,7 +40,7 @@ class Network():
         self.optimizer = optim.Adam(self.model.parameters(), lr=1e-3, weight_decay=1e-4)
         self.criterion = nn.CrossEntropyLoss()
 
-    def execute(self, train_loader, test_loader, max_epoch):
+    def execute(self, train_loader, test_loader, max_epoch, result_filename):
         """
         学習とテストの実施
 
@@ -75,9 +75,9 @@ class Network():
                 # テスト実施
                 test_loss, test_accuracy = self.__test(test_loader, epoch)
                 f_loss.write('{},{},{},{},{}\n'.format(epoch, train_loss, train_accuracy, test_loss, test_accuracy))
-                print('=== Epoch: {} (Time: {}) ==='.format(epoch, elapsed_time))
-                print('Train loss: {:.4e}, Train accuracy: {:.3f}%'.format(train_loss, train_accuracy))
-                print('Test  loss: {:.4e}, Test  accuracy: {:.3f}%'.format(test_loss, test_accuracy))
+                print('=== Epoch: {} (Time: {}[sec]) ==='.format(epoch, elapsed_time))
+                print('Train loss: {:.4e}, Train accuracy: {:.3%}'.format(train_loss, train_accuracy))
+                print('Test  loss: {:.4e}, Test  accuracy: {:.3%}'.format(test_loss, test_accuracy))
                 print('=================\n')
 
                 if test_accuracy > best_accuracy:
@@ -147,7 +147,7 @@ class Network():
                     )
 
         epoch_loss /= len(train_loader)
-        accuracy = 100 * correct / num_total
+        accuracy = correct / num_total
 
         return epoch_loss, accuracy
 
@@ -196,6 +196,6 @@ class Network():
                 correct += predicted.eq(targets.data).cpu().sum().item()
 
             epoch_loss /= len(test_loader)
-            accuracy = 100 * correct / num_total
+            accuracy = correct / num_total
 
         return epoch_loss, accuracy
