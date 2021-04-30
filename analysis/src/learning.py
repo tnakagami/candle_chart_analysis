@@ -37,7 +37,7 @@ class Network():
         model.fc = nn.Linear(num_ftrs, num_classes) # 全結合層（FC層）の出力クラス数を変更
         self.device = device
         self.model = model.to(self.device)
-        self.optimizer = optim.Adam(self.model.parameters(), lr=1e-3, weight_decay=1e-4)
+        self.optimizer = optim.SGD(self.model.parameters(), lr=1e-3, momentum=0.9)
         self.criterion = nn.CrossEntropyLoss()
 
     def execute(self, train_loader, test_loader, max_epoch, result_filename):
@@ -142,8 +142,8 @@ class Network():
             correct += predicted.eq(targets.data).cpu().sum().item()
 
             if batch_idx % output_interval == 0:
-                    print('Train Epoch: {} [{}/{}({:.0f}%)] Loss: {:.4e}'.format(
-                        epoch, num_total, len(train_loader.dataset), 100.0 * batch_idx / len(train_loader), loss_val)
+                    print('Train Epoch: {} [{}/{}({:.0%})] Loss: {:.4e}'.format(
+                        epoch, num_total, len(train_loader.dataset), batch_idx / len(train_loader), loss_val)
                     )
 
         epoch_loss /= len(train_loader)
