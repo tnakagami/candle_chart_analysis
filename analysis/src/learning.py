@@ -37,7 +37,7 @@ class Network():
         model.fc = nn.Linear(num_ftrs, num_classes) # 全結合層（FC層）の出力クラス数を変更
         self.device = device
         self.model = model.to(self.device)
-        self.optimizer = optim.Adam(self.model.parameters(), lr=1e-3, weight_decay=1e-4)
+        self.optimizer = optim.SGD(self.model.parameters(), lr=1e-3, momentum=0.9)
         self.criterion = nn.CrossEntropyLoss()
 
     def execute(self, train_loader, test_loader, max_epoch, result_filename):
