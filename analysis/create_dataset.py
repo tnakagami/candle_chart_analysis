@@ -2,7 +2,6 @@ import os
 import pandas as pd
 import mplfinance as mpf
 import matplotlib.pyplot as plt
-from matplotlib import gridspec
 
 # 平均値と標準偏差を算出
 def estimate_mean_std(df):
@@ -38,44 +37,49 @@ def output_dataset(df, output_filename):
     df.to_csv(output_filename, header=True, index=False)
 
 class CreateDataset():
-    def __init__(self, mean, std, df):
+    def __init__(self, mean, std, df, root_dir='chart'):
+        self.root_dir = root_dir
         self.mean = mean
         self.std = std
         # 1分のロウソク足の読み込み
         self.df = df.copy()
         # 1時間のロウソク足の作成
-        self.downsampling = df.resample('H').agg({'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'volume': 'sum'})
-        self.sampling_index = pd.Series([idx for idx in self.downsampling.index if idx in df.index])
+        self.downsampling = df.resample('H').agg({'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'volume': 'sum'}).dropna()
+
+    def __get_output_path(self, time):
+        output_filename = 'fig{}.png'.format(time.strftime('%Y%m%d%H%M'))
+        output_path = os.path.join(self.root_dir, time.strftime('%Y/%m'), output_filename)
+
+        return output_path
 
     # チャート出力用関数
     def plot_chart(self):
+        indices = self.downsampling.index
+        # 出力先のディレクトリ作成
+        date = indices.to_series().apply(lambda date: date.strftime('%Y/%m'))
+        dirs = date.drop_duplicates().to_list()
+        for dirname in dirs:
+            dir_path = os.path.join(self.root_dir, dirname)
+            os.makedirs(dir_path, exist_ok=True)
         # figureの生成
         fig = mpf.figure(style='yahoo', figsize=(3, 3))
         # 余白の設定
         fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
-        # GridSpecの設定
-        spec = gridspec.GridSpec(ncols=1, nrows=2, height_ratios=[2, 1])
-        spec.update(wspace=0.025, hspace=0) # 余白の更新
         # Axesの生成
-        chart_ax = fig.add_subplot(spec[0])
-        volume_ax = fig.add_subplot(spec[1])
+        ax = fig.add_subplot(1, 1, 1)
         # plot
-        indices = pd.to_datetime(self.sampling_index.tolist())
-        kwargs = {'type': 'candle', 'volume': volume_ax, 'ax': chart_ax, 'tight_layout': True}
         for idx in indices:
             print(idx.strftime('%Y/%m/%d %H:%M'))
-            mpf.plot(self.df[idx.strftime('%Y-%m-%d %H')], **kwargs)
+            mpf.plot(self.df[idx.strftime('%Y-%m-%d %H')], type='candle', ax=ax, tight_layout=True)
             # ラベルを削除
-            for ax in [chart_ax, volume_ax]:
-                ax.grid(False)
-                ax.axes.xaxis.set_ticks([])
-                ax.axes.yaxis.set_ticks([])
-                ax.axes.xaxis.set_visible(False)
-                ax.axes.yaxis.set_visible(False)
-                ax.axis('off')
-            fig.savefig('chart/fig{}.png'.format(idx.strftime('%Y%m%d%H%M')))
-            chart_ax.clear()
-            volume_ax.clear()
+            ax.grid(False)
+            ax.axes.xaxis.set_ticks([])
+            ax.axes.yaxis.set_ticks([])
+            ax.axes.xaxis.set_visible(False)
+            ax.axes.yaxis.set_visible(False)
+            ax.axis('off')
+            fig.savefig(self.__get_output_path(idx))
+            ax.clear()
 
         plt.close(fig)
 
@@ -85,9 +89,9 @@ class CreateDataset():
         series = self.downsampling['close'].pct_change(1).shift(-1).fillna(0)
         series_std = (series - self.mean) / self.std
         # DataFrameの用意
-        indices = pd.to_datetime(self.sampling_index.tolist())
+        indices = self.downsampling.index
         ret_df = pd.DataFrame(index=indices, columns=['path', 'class', 'label'])
-        ret_df['path'] = indices.to_series().apply(lambda time: 'chart/fig{}.png'.format(time.strftime('%Y%m%d%H%M')))
+        ret_df['path'] = indices.to_series().apply(lambda time: self.__get_output_path(time))
         # 初期化（下降）
         ret_df['class'] = 0
         ret_df['label'] = 'down'
@@ -125,15 +129,15 @@ if __name__ == '__main__':
     train_creater = CreateDataset(mean, std, train_df)
     test_creater = CreateDataset(mean, std, test_df)
     # 正解ラベルの生成
-    output_train_df = train_creater.create_groundtruth()
-    output_test_df = test_creater.create_groundtruth()
+    output_train_df = train_creater.create_groundtruth(threshold)
+    output_test_df = test_creater.create_groundtruth(threshold)
     output_dataset(output_train_df, train_output_filename)
     output_dataset(output_test_df, test_output_filename)
 
     if create_chart:
         # 時間のかかる処理
-        train_creater.plot_chart(threshold)
-        test_creater.plot_chart(threshold)
+        train_creater.plot_chart()
+        test_creater.plot_chart()
 
     # データセットのパスの確認
     for filename in [train_output_filename, test_output_filename]:
