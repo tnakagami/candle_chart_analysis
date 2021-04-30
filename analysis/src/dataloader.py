@@ -36,7 +36,7 @@ class _CsvFileDataset(Dataset):
         # 画像データのpathとclassを取得（有効なpathのみ）
         target_df = df[df['target_path'].apply(lambda path: os.path.exists(path))].copy()
         self.pathes = target_df['target_path'].to_list()
-        self.targets = list(filter(int, target_df['class'].to_list()))
+        self.targets = list(map(int, target_df['class'].to_list()))
 
     def __getitem__(self, index):
         """
