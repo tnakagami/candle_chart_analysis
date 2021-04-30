@@ -30,33 +30,13 @@ class _CsvFileDataset(Dataset):
             前処理用の関数
         """
         self.transform = transform
-        self.pathes, self.targets = self.__make_dataset(root_dir, csv_file)
-
-    def __make_dataset(self, root_dir, csv_file):
-        """
-        データセットの作成
-
-        Parameters
-        ----------
-        root_dir : str
-            ルートディレクトリ
-        csv_file : str
-            csvファイル
-
-        Returns
-        -------
-        samples : list of tuple
-            (画像データのpath, label)のリスト
-        """
         # csvファイルの読み込み
         df = pd.read_csv(csv_file, engine='python')
         df['target_path'] = df['path'].map(lambda path: os.path.join(root_dir, path))
         # 画像データのpathとclassを取得（有効なpathのみ）
-        target = df[df['target_path'].apply(lambda path: os.path.exists(path))].copy()
-        pathes = target['target_path'].to_list()
-        targets = list(filter(int, target['class'].to_list()))
-
-        return pathes, targets
+        target_df = df[df['target_path'].apply(lambda path: os.path.exists(path))].copy()
+        self.pathes = target_df['target_path'].to_list()
+        self.targets = list(filter(int, target_df['class'].to_list()))
 
     def __getitem__(self, index):
         """

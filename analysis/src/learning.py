@@ -142,8 +142,8 @@ class Network():
             correct += predicted.eq(targets.data).cpu().sum().item()
 
             if batch_idx % output_interval == 0:
-                    print('Train Epoch: {} [{}/{}({:.0f}%)] Loss: {:.4e}'.format(
-                        epoch, num_total, len(train_loader.dataset), 100.0 * batch_idx / len(train_loader), loss_val)
+                    print('Train Epoch: {} [{}/{}({:.0%})] Loss: {:.4e}'.format(
+                        epoch, num_total, len(train_loader.dataset), batch_idx / len(train_loader), loss_val)
                     )
 
         epoch_loss /= len(train_loader)
