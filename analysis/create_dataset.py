@@ -54,8 +54,9 @@ class CreateDataset():
 
     # チャート出力用関数
     def plot_chart(self):
+        indices = self.downsampling.index
         # 出力先のディレクトリ作成
-        date = self.downsampling.index.to_series().apply(lambda date: date.strftime('%Y/%m'))
+        date = indices.to_series().apply(lambda date: date.strftime('%Y/%m'))
         dirs = date.drop_duplicates().to_list()
         for dirname in dirs:
             dir_path = os.path.join(self.root_dir, dirname)
@@ -67,7 +68,7 @@ class CreateDataset():
         # Axesの生成
         ax = fig.add_subplot(1, 1, 1)
         # plot
-        for idx in self.downsampling.index:
+        for idx in indices:
             print(idx.strftime('%Y/%m/%d %H:%M'))
             mpf.plot(self.df[idx.strftime('%Y-%m-%d %H')], type='candle', ax=ax, tight_layout=True)
             # ラベルを削除
