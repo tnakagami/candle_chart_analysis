@@ -76,7 +76,15 @@
 1. 事前に取得したtokenを入力し、Webブラウザからworkディレクトリに移動する。
 
 ## チャート画像の作成手順
-1. Jupyter Notebookから「candle_chart_visualizer.ipynb」を起動する。
+### pythonファイルを直接実行する場合
+1. docker containerにアクセスし、以下のコマンドを実行し、チャート画像の作成が完了するのを待つ。
+
+    ```bash
+    python create_dataset.py
+    ```
+
+### Jupyter Notebookから実行する場合
+1. Jupyter Notebookから「generate_candle_chart_dataset.ipynb」を起動する。
 1. 起動したNotebookの先頭セルから順番に実行する。チャート画像の作成には時間がかかるため、余裕をもって実施すること。
 
 ## モデル構築の実施手順
