@@ -5,15 +5,15 @@ import matplotlib.pyplot as plt
 
 # 平均値と標準偏差を算出
 def estimate_mean_std(df):
-    target = df.resample('H').agg({'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'volume': 'sum'})
-    series = target['close'].pct_change(1).shift(-1).fillna(0)
+    target = df.resample('H').agg({'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'volume': 'sum'}).dropna()
+    series = target['close'].pct_change(1).shift(-1).dropna()
     print('mean: {:.15e}'.format(series.mean()))
     print('std:  {:.15e}'.format(series.std()))
 
     return series
 
 # ヒストグラムの描画
-def plot_histogram(series. threshold=0.1):
+def plot_histogram(series. threshold=0.25):
     # ヒストグラムの描画
     series_std = (series - series.mean()) / series.std()
     fig = plt.figure(figsize=(15,5))
@@ -23,9 +23,8 @@ def plot_histogram(series. threshold=0.1):
     ax.set_ylabel('frequency')
     ax.set_ylim(0, 1.0)
     judge = series_std.abs() < threshold
-    ax.hist(series_std,        bins=1000, range=(-5, 5), density=True, alpha=0.3, color='b')
-    ax.hist(series_std[judge], bins=1000, range=(-5, 5), density=True, alpha=0.3, color='r')
-    ax.grid()
+    ax.hist(series_std,        bins=500, range=(-5, 5), density=True, alpha=0.3, color='b')
+    ax.hist(series_std[judge], bins=500, range=(-5, 5), density=True, alpha=0.3, color='r')
     matched = series_std[judge].count()
     total = series_std.count()
     print('matched / total: {} / {} ({:.3%})'.format(matched, total, matched / total))
@@ -45,10 +44,11 @@ class CreateDataset():
         self.df = df.copy()
         # 1時間のロウソク足の作成
         self.downsampling = df.resample('H').agg({'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'volume': 'sum'}).dropna()
+        self.get_middle_dir = lambda time: time.strftime('%Y/%m')
 
     def __get_output_path(self, time):
         output_filename = 'fig{}.png'.format(time.strftime('%Y%m%d%H%M'))
-        output_path = os.path.join(self.root_dir, time.strftime('%Y/%m'), output_filename)
+        output_path = os.path.join(self.root_dir, self.get_middle_dir(time), output_filename)
 
         return output_path
 
@@ -56,7 +56,7 @@ class CreateDataset():
     def plot_chart(self):
         indices = self.downsampling.index
         # 出力先のディレクトリ作成
-        date = indices.to_series().apply(lambda date: date.strftime('%Y/%m'))
+        date = indices.to_series().apply(lambda time: self.get_middle_dir(time))
         dirs = date.drop_duplicates().to_list()
         for dirname in dirs:
             dir_path = os.path.join(self.root_dir, dirname)
@@ -84,9 +84,9 @@ class CreateDataset():
         plt.close(fig)
 
     # チャートから正解ラベルを生成
-    def create_groundtruth(self, threshold=0.1):
+    def create_groundtruth(self, threshold=0.25):
         # 差分抽出
-        series = self.downsampling['close'].pct_change(1).shift(-1).fillna(0)
+        series = self.downsampling['close'].pct_change(1).shift(-1).fillna(self.mean)
         series_std = (series - self.mean) / self.std
         # DataFrameの用意
         indices = self.downsampling.index
@@ -114,7 +114,7 @@ if __name__ == '__main__':
     # ================
     # データセット作成
     # ================
-    threshold = 0.1
+    threshold = 0.25
     train_output_filename = 'train_dataset.csv'
     test_output_filename = 'test_dataset.csv'
     train_df = df[:'2019'].copy()
