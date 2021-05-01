@@ -13,7 +13,7 @@ def estimate_mean_std(df):
     return series
 
 # ヒストグラムの描画
-def plot_histogram(series. threshold=0.1):
+def plot_histogram(series. threshold=0.25):
     # ヒストグラムの描画
     series_std = (series - series.mean()) / series.std()
     fig = plt.figure(figsize=(15,5))
@@ -84,9 +84,9 @@ class CreateDataset():
         plt.close(fig)
 
     # チャートから正解ラベルを生成
-    def create_groundtruth(self, threshold=0.1):
+    def create_groundtruth(self, threshold=0.25):
         # 差分抽出
-        series = self.downsampling['close'].pct_change(1).shift(-1).dropna()
+        series = self.downsampling['close'].pct_change(1).shift(-1).fillna(self.mean)
         series_std = (series - self.mean) / self.std
         # DataFrameの用意
         indices = self.downsampling.index
@@ -114,7 +114,7 @@ if __name__ == '__main__':
     # ================
     # データセット作成
     # ================
-    threshold = 0.1
+    threshold = 0.25
     train_output_filename = 'train_dataset.csv'
     test_output_filename = 'test_dataset.csv'
     train_df = df[:'2019'].copy()
