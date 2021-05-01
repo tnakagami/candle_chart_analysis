@@ -219,8 +219,8 @@ if __name__ == '__main__':
 
     if create_chart:
         # 時間のかかる処理
-        train_creater.plot_chart(train_df)
-        test_creater.plot_chart(test_df)
+        creater.plot_chart(train_df)
+        creater.plot_chart(test_df)
 
     # データセットのパスの確認
     for filename in [train_output_filename, test_output_filename]:
