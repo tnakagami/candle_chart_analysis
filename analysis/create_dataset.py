@@ -16,7 +16,7 @@ def estimate_mean_std(df):
 def plot_histogram(series. threshold=0.25):
     # ヒストグラムの描画
     series_std = (series - series.mean()) / series.std()
-    fig = plt.figure(figsize=(15,5))
+    fig = plt.figure(figsize=(15, 5))
     ax = fig.add_subplot(1, 1, 1)
     ax.set_title('Distribution of pct_change')
     ax.set_xlabel('pct_change')
