@@ -1,19 +1,57 @@
 import os
+import numpy as np
 import pandas as pd
 import mplfinance as mpf
 import matplotlib.pyplot as plt
 
-# 平均値と標準偏差を算出
-def estimate_mean_std(df):
-    target = df.resample('H').agg({'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'volume': 'sum'}).dropna()
-    series = target['close'].pct_change(1).shift(-1).dropna()
-    print('mean: {:.15e}'.format(series.mean()))
-    print('std:  {:.15e}'.format(series.std()))
+# 変化量の推定
+def estimate_diff(df):
+    params = {'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'volume': 'sum'}
+
+    # オリジナルデータの取得
+    original_index = df.index.to_series()
+    # ダウンサンプリングしたローソク足の作成
+    dfs = {
+        'hour':      df.resample('H').agg(params).dropna(),  # 1時間のローソク足チャート
+        'one_sixth': df.resample('4H').agg(params).dropna(), # 4時間のローソク足チャート
+        '1day':      df.resample('D').agg(params).dropna(),  # 1日のローソク足チャート
+        '3days':     df.resample('3D').agg(params).dropna(), # 3日のローソク足チャート
+    }
+    # 重み係数（ヒューリスティックに決定）
+    weights = {
+        'hour':      0.30,
+        'one_sixth': 0.50,
+        '1day':      0.15,
+        '3days':     0.05,
+    }
+    # 変化量の計算
+    diff_func = lambda target: target['close'].pct_change(1).shift(-1).dropna()
+    # データごとに変化量を計算
+    diffs = {key: diff_func(target) for key, target in dfs.items()}
+    # インデックスの作成
+    indices = pd.concat([series.index.to_series() for series in diffs.values()]).drop_duplicates().sort_values()
+    # データフレームの作成
+    columns = list(dfs.keys())
+    target_df = pd.DataFrame(data=np.nan, index=indices, columns=columns)
+
+    # データが存在する部分を更新
+    for key, series in diffs.items():
+        target = series.index.to_series().apply(lambda time: time.strftime('%Y/%m/%d %H:%M'))
+        target_df.loc[target, key] = series
+
+    # hourを基準にNaNの行を削除
+    target_df = target_df.dropna(subset=['hour'])
+    # 線形補間
+    target_df = target_df.interpolate()
+    # 重み付け和により変化量を推定
+    for key in columns:
+        target_df['weighted_{}'.format(key)] = weights[key] * target_df[key]
+    series = target_df[['weighted_{}'.format(key) for key in columns]].sum(axis=1)
 
     return series
 
 # ヒストグラムの描画
-def plot_histogram(series. threshold=0.25):
+def plot_histogram(series, threshold=0.3):
     # ヒストグラムの描画
     series_std = (series - series.mean()) / series.std()
     fig = plt.figure(figsize=(15, 5))
@@ -22,39 +60,80 @@ def plot_histogram(series. threshold=0.25):
     ax.set_xlabel('pct_change')
     ax.set_ylabel('frequency')
     ax.set_ylim(0, 1.0)
+    ax.grid(False)
     judge = series_std.abs() < threshold
-    ax.hist(series_std,        bins=500, range=(-5, 5), density=True, alpha=0.3, color='b')
-    ax.hist(series_std[judge], bins=500, range=(-5, 5), density=True, alpha=0.3, color='r')
+    ax.hist(series_std,        bins=500, range=(-5,5), density=True, alpha=0.3, color='b')
+    ax.hist(series_std[judge], bins=500, range=(-5,5), density=True, alpha=0.3, color='r')
     matched = series_std[judge].count()
     total = series_std.count()
     print('matched / total: {} / {} ({:.3%})'.format(matched, total, matched / total))
-
+    
     return ax
 
-# データセットの出力
-def output_dataset(df, output_filename):
-    df.to_csv(output_filename, header=True, index=False)
-
 class CreateDataset():
-    def __init__(self, mean, std, df, root_dir='chart'):
+    def __init__(self, diff, root_dir='chart'):
         self.root_dir = root_dir
-        self.mean = mean
-        self.std = std
-        # 1分のロウソク足の読み込み
-        self.df = df.copy()
-        # 1時間のロウソク足の作成
-        self.downsampling = df.resample('H').agg({'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'volume': 'sum'}).dropna()
+        self.mean = diff.mean()
+        self.std = diff.std()
+        # ダウンサンプリング用の関数
+        self.downsampling_func = lambda df, pattern: df.resample('H').agg({'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'volume': 'sum'}).dropna()
         self.get_middle_dir = lambda time: time.strftime('%Y/%m')
-
+        
     def __get_output_path(self, time):
         output_filename = 'fig{}.png'.format(time.strftime('%Y%m%d%H%M'))
         output_path = os.path.join(self.root_dir, self.get_middle_dir(time), output_filename)
-
+        
         return output_path
 
+    # 変化量の推定
+    def estimate_diff(self, df):
+        params = {'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'volume': 'sum'}
+
+        # オリジナルデータの取得
+        original_index = df.index.to_series()
+        # ダウンサンプリングしたローソク足の作成
+        dfs = {
+            'hour':      self.downsampling_func(df, 'H'),  # 1時間のローソク足チャート
+            'one_sixth': self.downsampling_func(df, '4H'), # 4時間のローソク足チャート
+            '1day':      self.downsampling_func(df, 'D'),  # 1日のローソク足チャート
+            '3days':     self.downsampling_func(df, '3D'), # 3日のローソク足チャート
+        }
+        # 重み係数（ヒューリスティックに決定）
+        weights = {
+            'hour':      0.30,
+            'one_sixth': 0.50,
+            '1day':      0.15,
+            '3days':     0.05,
+        }
+        # 変化量の計算（NaNは平均値とする）
+        diff_func = lambda target: target['close'].pct_change(1).shift(-1).fillna(self.mean)
+        # データごとに変化量を計算
+        diffs = {key: diff_func(target) for key, target in dfs.items()}
+        # インデックスの作成
+        indices = pd.concat([series.index.to_series() for series in diffs.values()]).drop_duplicates().sort_values()
+        # データフレームの作成
+        columns = list(dfs.keys())
+        target_df = pd.DataFrame(data=np.nan, index=indices, columns=columns)
+
+        # データが存在する部分を更新
+        for key, series in diffs.items():
+            target = series.index.to_series().apply(lambda time: time.strftime('%Y/%m/%d %H:%M'))
+            target_df.loc[target, key] = series
+
+        # hourを基準にNaNの行を削除
+        target_df = target_df.dropna(subset=['hour'])
+        # 線形補間
+        target_df = target_df.interpolate()
+        # 重み付け和により変化量を推定
+        for key in columns:
+            target_df['weighted_{}'.format(key)] = weights[key] * target_df[key]
+        series = target_df[['weighted_{}'.format(key) for key in columns]].sum(axis=1)
+
+        return series
+
     # チャート出力用関数
-    def plot_chart(self):
-        indices = self.downsampling.index
+    def plot_chart(self, df):
+        indices = self.downsampling_func(df, 'H').index
         # 出力先のディレクトリ作成
         date = indices.to_series().apply(lambda time: self.get_middle_dir(time))
         dirs = date.drop_duplicates().to_list()
@@ -70,7 +149,7 @@ class CreateDataset():
         # plot
         for idx in indices:
             print(idx.strftime('%Y/%m/%d %H:%M'))
-            mpf.plot(self.df[idx.strftime('%Y-%m-%d %H')], type='candle', ax=ax, tight_layout=True)
+            mpf.plot(df[idx.strftime('%Y-%m-%d %H')], type='candle', ax=ax, tight_layout=True)
             # ラベルを削除
             ax.grid(False)
             ax.axes.xaxis.set_ticks([])
@@ -84,12 +163,12 @@ class CreateDataset():
         plt.close(fig)
 
     # チャートから正解ラベルを生成
-    def create_groundtruth(self, threshold=0.25):
-        # 差分抽出
-        series = self.downsampling['close'].pct_change(1).shift(-1).fillna(self.mean)
+    def create_groundtruth(self, df, threshold=0.3):
+        # 変化量の取得
+        series = self.estimate_diff(df)
         series_std = (series - self.mean) / self.std
         # DataFrameの用意
-        indices = self.downsampling.index
+        indices = self.downsampling_func(df, 'H').index
         ret_df = pd.DataFrame(index=indices, columns=['path', 'class', 'label'])
         ret_df['path'] = indices.to_series().apply(lambda time: self.__get_output_path(time))
         # 初期化（下降）
@@ -105,6 +184,10 @@ class CreateDataset():
         ret_df.loc[judge, 'label'] = 'up'
 
         return ret_df
+    
+# データセットの出力
+def output_dataset(df, output_filename):
+    df.to_csv(output_filename, header=True, index=False)
 
 if __name__ == '__main__':
     # データの読み込み
@@ -114,30 +197,30 @@ if __name__ == '__main__':
     # ================
     # データセット作成
     # ================
-    threshold = 0.25
+    threshold = 0.3
     train_output_filename = 'train_dataset.csv'
     test_output_filename = 'test_dataset.csv'
     train_df = df[:'2019'].copy()
     test_df = df['2020'].copy()
 
     # データの推定
-    series = estimate_mean_std(df)
+    series = estimate_diff(df)
+    print('mean: {:.15e}'.format(series.mean()))
+    print('std:  {:.15e}'.format(series.std()))
     plot_histogram(series, threshold)
 
     # インスタンス生成
-    mean, std = series.mean(), series.std()
-    train_creater = CreateDataset(mean, std, train_df)
-    test_creater = CreateDataset(mean, std, test_df)
+    creater = CreateDataset(series)
     # 正解ラベルの生成
-    output_train_df = train_creater.create_groundtruth(threshold)
-    output_test_df = test_creater.create_groundtruth(threshold)
+    output_train_df = creater.create_groundtruth(train_df, threshold)
+    output_test_df = creater.create_groundtruth(test_df, threshold)
     output_dataset(output_train_df, train_output_filename)
     output_dataset(output_test_df, test_output_filename)
 
     if create_chart:
         # 時間のかかる処理
-        train_creater.plot_chart()
-        test_creater.plot_chart()
+        train_creater.plot_chart(train_df)
+        test_creater.plot_chart(test_df)
 
     # データセットのパスの確認
     for filename in [train_output_filename, test_output_filename]:
