@@ -84,7 +84,7 @@
     ```
 
 ### Jupyter Notebookから実行する場合
-1. Jupyter Notebookから「generate_candle_chart_dataset.ipynb」を起動する。
+1. Jupyter Notebookから「create_candle_chart_dataset.ipynb」を起動する。
 1. 起動したNotebookの先頭セルから順番に実行する。チャート画像の作成には時間がかかるため、余裕をもって実施すること。
 
 ## モデル構築の実施手順
