@@ -240,7 +240,6 @@ class Network():
         best_params : dict
             学習により得られた最適なパラメータ
         """
-
         best_accuracy = -1
         best_params = self.model.state_dict()
 
@@ -311,7 +310,6 @@ class Network():
         accuracy : float
             正解率
         """
-
         # モデルを学習用に設定
         self.model.train()
         # 出力回数
@@ -380,7 +378,6 @@ class Network():
         accuracy : float
             正解率
         """
-
         with torch.no_grad():
             # モデルを評価用に設定
             self.model.eval()
