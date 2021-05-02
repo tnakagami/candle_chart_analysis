@@ -13,7 +13,6 @@ class AnalysisCandleChart:
     ----------
     grouping_rule : str
         チャートをグループ化する際のルール
-        デフォルト：4時間ごと
     pca : PCA
         主成分分析処理用のインスタンス
     """
@@ -29,6 +28,7 @@ class AnalysisCandleChart:
             デフォルト：4時間ごと
         pca : PCA
             主成分分析処理用のインスタンス
+            デフォルト：None
         """
         self.grouping_rule = grouping_rule
         self.pca = pca
@@ -80,8 +80,6 @@ class AnalysisCandleChart:
         ----------
         df : DataFrame
             処理対象のDataFrame
-        pca : PCA
-            次元圧縮に利用する
 
         Returns
         -------
@@ -128,10 +126,8 @@ class CreateDataset(AnalysisCandleChart):
         データセットのルートディレクトリ
     chart_rule : str
         出力するチャートのルール
-        デフォルト：10分毎
     threshold : float
         変化量の閾値
-        デフォルト：0.1
     mean : float
         変化量の平均値
     std : float
@@ -148,6 +144,7 @@ class CreateDataset(AnalysisCandleChart):
             推定した変化量
         root_dir : str
             データセットのルートディレクトリ
+            デフォルト：chart
         chart_rule : str
             出力するチャートのルール
             デフォルト：10分毎
