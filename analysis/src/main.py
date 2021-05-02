@@ -47,4 +47,4 @@ if __name__ == '__main__':
     # ======================
     # モデルパラメータの保存
     # ======================
-    torch.save(best_params, 'resnet18.pth')
+    torch.save(best_params, 'vgg16.pth')
