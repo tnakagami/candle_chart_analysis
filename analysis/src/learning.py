@@ -3,7 +3,180 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torchvision.models as models
+from torch.autograd.function import Function
 import time
+
+class CustomModel(nn.Module):
+    """
+    カスタムモデル
+
+    Attributes
+    ----------
+    base_model : nn.Module
+        ベースモデル
+    prelu : nn.PReLU
+        活性化関数
+    fc : nn.Linear
+        全結合層
+    """
+
+    def __init__(self, embedded_dim, num_classes):
+        """
+        コンストラクタ
+
+        Parameters
+        ----------
+        embedded_dim : int
+            埋め込みベクトルの次元数
+        num_classes : int
+            出力クラスサイズ
+        """
+        super().__init__()
+        model = models.vgg16(pretrained=True)
+        num_features = model.classifier[6].in_features
+        model.classifier[6] = nn.Linear(num_features, embedded_dim)
+        self.base_model = model
+        self.prelu = nn.PReLU()
+        self.fc = nn.Linear(embedded_dim, num_classes)
+
+    def forward(self, inputs):
+        """
+        順伝播
+
+        Parameters
+        ----------
+        inputs : torch.tensor
+            入力データ
+
+        Returns
+        -------
+        features : torch.tensor
+            埋め込みベクトル
+        outputs : torch.tensor
+            出力データ
+        """
+        features = self.prelu(self.base_model(inputs))
+        outputs = self.fc(features)
+
+        return features, outputs
+
+class CenterLoss(nn.Module):
+    """
+    距離学習用の損失関数（CenterLoss）
+
+    Attributes
+    ----------
+    centers : nn.Parameter
+        CenterLoss用のパラメータ
+    center_loss_func : CenterlossFunc
+        CenterLoss計算用関数
+    """
+
+    def __init__(self, embedded_dim, num_classes):
+        """
+        コンストラクタ
+
+        Parameters
+        ----------
+        embedded_dim : int
+            埋め込みベクトルの次元数
+        num_classes : int
+            出力クラスサイズ
+        """
+        super().__init__()
+        self.centers = nn.Parameter(torch.randn(num_classes, embedded_dim))
+        self.center_loss_func = CenterlossFunc.apply
+
+    def forward(self, features, labels):
+        """
+        順伝播
+
+        Parameters
+        ----------
+        features : torch.tensor
+            埋め込みベクトル
+        labels : torch.tensor
+            正解ラベル
+
+        Returns
+        -------
+        loss : torch.tensor
+            損失関数の値
+        """
+        batch_size = features.size(0)
+        features = features.view(batch_size, -1)
+        batch_size_tensor = features.new_empty(1).fill_(batch_size)
+        loss = self.center_loss_func(features, labels, self.centers, batch_size_tensor)
+
+        return loss
+
+class CenterlossFunc(Function):
+    @staticmethod
+    def forward(ctx, features, labels, centers, batch_size):
+        """
+        順伝播
+
+        Parameters
+        ----------
+        features : torch.tensor
+            埋め込みベクトル
+        labels : torch.tensor
+            正解ラベル
+        centers : torch.tensor
+            CenterLoss用のパラメータ
+        batch_size : torch.tensor
+            バッチサイズ
+
+        Returns
+        -------
+        loss : torch.tensor
+            損失関数の値
+        """
+        ctx.save_for_backward(features, labels, centers, batch_size)
+        centers_batch = centers.index_select(0, labels.long())
+        loss = (features - centers_batch).pow(2).sum() / 2.0 / batch_size
+
+        return loss
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        """
+        逆伝播
+
+        Parameters
+        ----------
+        grad_output : torch.tensor
+            出力層側からの勾配情報
+
+        Returns
+        -------
+        outgrad_features : torch.tensor
+            入力層側への勾配情報（埋め込みベクトル）
+        outgrad_labels : torch.tensor
+            入力層側への勾配情報（正解ラベル）
+        outgrad_centers : torch.tensor
+            入力層側への勾配情報（CenterLoss用のパラメータ）
+        outgrad_batch_size : torch.tensor
+            入力層側への勾配情報（バッチサイズ）
+        """
+        features, labels, centers, batch_size = ctx.saved_tensors
+        centers_batch = centers.index_select(0, labels.long())
+        diff = centers_batch - features
+        # init every iteration
+        counts = centers.new_ones(centers.size(0))
+        ones = centers.new_ones(labels.size(0))
+        grad_centers = centers.new_zeros(centers.size())
+        # calculate gradient
+        counts = counts.scatter_add_(0, labels.long(), ones)
+        grad_centers.scatter_add_(0, labels.unsqueeze(1).expand(features.size()).long(), diff)
+        grad_centers = grad_centers / counts.view(-1, 1)
+        # output tensor
+        outgrad_features = -grad_output * diff / batch_size
+        outgrad_labels = None
+        outgrad_centers = grad_centers / batch_size
+        outgrad_batch_size = None
+
+        return outgrad_features, outgrad_labels, outgrad_centers, outgrad_batch_size
 
 class Network():
     """
@@ -13,15 +186,21 @@ class Network():
     ----------
     device : torch.device
         利用するデバイス
+    alpha : float
+        損失関数のハイパーパラメータ
     model : nn.Module
         利用するモデル
-    optimizer : optim.Adam
-        利用する最適化手法
-    criterion : nn.CrossEntropyLoss
-        利用する損失関数
+    optimizer_model : optim.SGD
+        利用する最適化手法（model用）
+    optimizer_center_loss : optim.SGD
+        利用する最適化手法（CenterLoss用）
+    criterion_xentory : nn.CrossEntropyLoss
+        利用する損失関数（正解ラベル用）
+    criterion_center : CenterLoss
+        利用する損失関数（特徴ベクトル用）
     """
 
-    def __init__(self, device, num_classes):
+    def __init__(self, device, embedded_dim, num_classes):
         """
         コンストラクタ
 
@@ -29,16 +208,18 @@ class Network():
         ----------
         device : torch.device
             利用するデバイス
+        embedded_dim : int
+            埋め込みベクトルの次元数
         num_classes : int
             出力層のクラスサイズ
         """
-        model = models.vgg16(pretrained=True)
-        num_features = model.classifier[6].in_features
-        model.classifier[6] = nn.Linear(num_features, num_classes) # 全結合層（FC層）の出力クラス数を変更
         self.device = device
-        self.model = model.to(self.device)
-        self.optimizer = optim.SGD(self.model.parameters(), lr=1e-3, momentum=0.9)
-        self.criterion = nn.CrossEntropyLoss()
+        self.alpha = 1e-1
+        self.model = CustomModel(embedded_dim, num_classes).to(self.device)
+        self.criterion_xentory = nn.CrossEntropyLoss()
+        self.criterion_center = CenterLoss(embedded_dim, num_classes).to(self.device)
+        self.optimizer_model = optim.SGD(self.model.parameters(), lr=1e-3, weight_decay=1e-4, momentum=0.9)
+        self.optimizer_center_loss = optim.SGD(self.criterion_center.parameters(), lr=1e-1)
 
     def execute(self, train_loader, test_loader, max_epoch, result_filename):
         """
@@ -86,6 +267,33 @@ class Network():
 
         return best_params
 
+    def load(self, filepath):
+        """
+        モデルパラメータの読み込み
+
+        Parameters
+        ----------
+        filepath : str
+            入力元のファイルパス
+        """
+        params = torch.load(filepath)
+        self.model.load_state_dict(params)
+
+    def save(self, filepath, params=None):
+        """
+        モデルパラメータの保存
+
+        Parameters
+        ----------
+        filepath : str
+            出力先のファイルパス
+        params : dict
+            モデルパラメータ
+        """
+        if params is None:
+            params = self.model.state_dict()
+        torch.save(params, filepath)
+
     def __train(self, train_loader, epoch):
         """
         学習実施
@@ -124,15 +332,19 @@ class Network():
             targets = targets.to(self.device).long()
 
             # 勾配の初期化
-            self.optimizer.zero_grad()
+            self.optimizer_model.zero_grad()
+            self.optimizer_center_loss.zero_grad()
             # 順伝播処理
-            outputs = self.model(inputs)
+            features, outputs = self.model(inputs)
             # 損失関数の計算
-            loss = self.criterion(outputs, targets)
+            xentory_loss = self.criterion_xentory(outputs, targets)
+            center_loss = self.criterion_center(features, targets)
+            loss = xentory_loss + self.alpha * center_loss
             # 逆伝播
             loss.backward()
             # パラメータ更新
-            self.optimizer.step()
+            self.optimizer_model.step()
+            self.optimizer_center_loss.step()
 
             # 予測結果の集計
             loss_val = loss.item()
@@ -185,9 +397,11 @@ class Network():
                 targets = targets.to(self.device).long()
 
                 # 順伝播処理
-                outputs = self.model(inputs)
+                features, outputs = self.model(inputs)
                 # 損失関数の計算
-                loss = self.criterion(outputs, targets)
+                xentory_loss = self.criterion_xentory(outputs, targets)
+                center_loss = self.criterion_center(features, targets)
+                loss = xentory_loss + self.alpha * center_loss
 
                 # 予測結果の集計
                 epoch_loss += loss.item()
