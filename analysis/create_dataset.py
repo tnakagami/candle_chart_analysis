@@ -4,6 +4,7 @@ import pandas as pd
 import mplfinance as mpf
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
+
 class AnalysisCandleChart:
     """
     ローソク足チャートの分析
@@ -307,13 +308,15 @@ if __name__ == '__main__':
     # ================
     create_chart = True
     threshold = 0.3
+    chart_rule = '15T'
+    grouping_rule = '4H'
     train_output_filename = 'train_dataset.csv'
     test_output_filename = 'test_dataset.csv'
     train_df = df[:'2019'].copy()
     test_df = df['2020'].copy()
 
     # 推定処理
-    analyzer = AnalysisCandleChart()
+    analyzer = AnalysisCandleChart(grouping_rule=grouping_rule)
     diff = analyzer.estimate_diff(df)
     mean, std = diff.mean(), diff.std()
     print('mean: {:.15e}'.format(mean))
@@ -321,7 +324,7 @@ if __name__ == '__main__':
     plot_histogram(diff, mean, std, threshold=threshold)
 
     # データセットの生成
-    creater = CreateDataset(diff, threshold=threshold, pca=analyzer.pca)
+    creater = CreateDataset(diff, chart_rule=chart_rule, threshold=threshold, grouping_rule=grouping_rule, pca=analyzer.pca)
     creater.output_dataset(creater.create_groundtruth(train_df), train_output_filename)
     creater.output_dataset(creater.create_groundtruth(test_df), test_output_filename)
 
