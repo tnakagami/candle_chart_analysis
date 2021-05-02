@@ -32,9 +32,9 @@ class Network():
         num_classes : int
             出力層のクラスサイズ
         """
-        model = models.resnet18(pretrained=True)
-        num_ftrs = model.fc.in_features
-        model.fc = nn.Linear(num_ftrs, num_classes) # 全結合層（FC層）の出力クラス数を変更
+        model = models.vgg16(pretrained=True)
+        num_features = model.classifier[6].in_features
+        model.classifier[6] = nn.Linear(num_features, num_classes) # 全結合層（FC層）の出力クラス数を変更
         self.device = device
         self.model = model.to(self.device)
         self.optimizer = optim.SGD(self.model.parameters(), lr=1e-3, momentum=0.9)
