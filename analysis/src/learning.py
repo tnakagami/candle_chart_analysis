@@ -75,7 +75,7 @@ class Network():
                 # テスト実施
                 test_loss, test_accuracy = self.__test(test_loader, epoch)
                 f_loss.write('{},{},{},{},{}\n'.format(epoch, train_loss, train_accuracy, test_loss, test_accuracy))
-                print('=== Epoch: {} (Time: {}[sec]) ==='.format(epoch, elapsed_time))
+                print('=== Epoch: {} (Time: {:.3f}[sec]) ==='.format(epoch, elapsed_time))
                 print('Train loss: {:.4e}, Train accuracy: {:.3%}'.format(train_loss, train_accuracy))
                 print('Test  loss: {:.4e}, Test  accuracy: {:.3%}'.format(test_loss, test_accuracy))
                 print('=================\n')
